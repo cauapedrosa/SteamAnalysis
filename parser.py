@@ -1,6 +1,6 @@
 import os
 import apps
-import json
+import json, csv
 import re
 import time
 import pandas as pd
@@ -66,7 +66,7 @@ def load_all_app_raw_reviews(language:str = 'english') -> pd.DataFrame:
         
         df_output = pd.concat([df_output, df]).drop_duplicates(subset='recommendationid', keep='last')
 
-    print(f"> Loaded {len(df_output)} reviews in: ⏱️  {time.perf_counter()-start:.2f} seconds")
+    print(f"⏱️  Loaded {len(df_output)} reviews in  {time.perf_counter()-start:.2f} seconds")
     return df_output
 
 def load_app_reviews(app: apps.App, language: str = 'english') -> pd.DataFrame:
@@ -93,23 +93,28 @@ def load_app_reviews(app: apps.App, language: str = 'english') -> pd.DataFrame:
         return df # return empty df anyways
     else: # add AppID and Language Columns
         df['appid'] = app.id
-        df['language'] = language
+        df['appname'] = app.name
+
+    # Split JSON in 'Author' field into individual fields with 'author_' prefix.\
+    author_df = pd.json_normalize(df['author']) # type: ignore
+    author_df = author_df.add_prefix('author_')
+    df = df.drop(columns=['author']).join(author_df)
 
     # Drop Unused Columns
-    df_final = df.drop(columns=[
-                                "votes_up",
-                                "votes_funny",
-                                "weighted_vote_score",
-                                "comment_count",
-                                "written_during_early_access",
-                                "primarily_steam_deck"
-                                ])
+    # df = df.drop(columns=[
+    #     "votes_up",
+    #     "votes_funny",
+    #     "weighted_vote_score",
+    #     "comment_count",
+    #     "written_during_early_access",
+    #     "primarily_steam_deck"
+    # ])
 
     # Count DF Lines
-    if DEBUG: print(f"# load_app_reviews() Returning {type(df_final)} with {len(df_final)} rows")
+    if DEBUG: print(f"# load_app_reviews() Returning {type(df)} with {len(df)} rows")
 
     print(f"> Loaded {len(df)} reviews in: ⏱️  {time.perf_counter()-start:.2f} seconds")
-    return df_final
+    return df
 
 def load_preprocessed_app_reviews(app: apps.App, suffix: str = 'processed') -> pd.DataFrame:
     """
@@ -134,11 +139,9 @@ def load_preprocessed_app_reviews(app: apps.App, suffix: str = 'processed') -> p
         print(f"⚠️  {path_reviews_json} contains 0 reviews.") # warn user
         return df # return empty df anyways
 
-    # Drop Unused Columns
-
     # Count DF Lines
     if DEBUG: print(f"# load_preprocessed_app_reviews() Returning {type(df)} with {len(df)} rows")
-
+    
     print(f"> Loaded {len(df)} reviews in: ⏱️  {time.perf_counter()-start:.2f} seconds")
     return df
 
@@ -361,4 +364,22 @@ def generate_wordcloud(
     plt.close()
 
     print(f"\n> {app.name} [{app.id}] WordCloud saved to {output_path}")
+    return
+
+def save_csv(df:pd.DataFrame, file_name:str) -> bool | None:
+    if any(c in file_name for c in ['.', '/']): raise Exception(f"Error: file_name '{file_name}' is invalid.")
+
+    start = time.perf_counter()
+    file_path = f"./csv/{file_name}.csv"
+    
+    if os.path.exists(file_path):
+        print(f"⚠️  {file_path} already exists! Overwriting...")
+    
+    df.to_csv(
+        file_path,
+        index=True,
+        sep=';'
+    )
+    
+    print(f"Saved {len(df)} reviews to 'csv/{file_name}.csv' in {time.perf_counter() - start:.2f} seconds")
     return

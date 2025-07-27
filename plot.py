@@ -7,8 +7,8 @@ import numpy as np
 
 FILE_NAME = f"plot2.png"
 FILE_PATH = f"./figures/{FILE_NAME}"
+
 def main():
-    start = time.perf_counter()    
     
     
     # Load JSON data
@@ -16,7 +16,7 @@ def main():
 
     # Prepare data
     df = df[df["appname"].notnull()]
-    df["appname"] = df["appname"].astype(str)
+    df["appname"] = str(df["appname"])
     df["date"] = pd.to_datetime(df["timestamp_updated"], unit="s")
     df["month"] = df["date"].dt.to_period("M").dt.to_timestamp()
     
@@ -53,8 +53,8 @@ def main():
     plt.legend(handles, labels, title="Game", loc="upper left")
     plt.show(block=False)
     plt.savefig(FILE_PATH) 
-    print(f"\n⏱️  Total execution time: {time.perf_counter() - start :.2f} seconds\n")
-
 
 if __name__=='__main__':
+    start = time.perf_counter()    
     main()
+    print(f"\n⏱️  Total execution time: {time.perf_counter() - start :.2f} seconds\n")

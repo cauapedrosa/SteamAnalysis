@@ -60,14 +60,12 @@ def count(app) -> int:
 def main() -> None:
     global _total_positive_review_count, _total_negative_review_count, _total_review_count
 
-    app_list_to_count = apps.apps
-    # app_list_to_count = [apps.get_app_by_id('570')]
+    # app_list_to_count = apps.apps
+    app_list_to_count = [apps.get_app_by_id('570')]
     
-    start = time.perf_counter()
     
     print(f"\nCounting reviews for {len(app_list_to_count)} apps:")
     for app in app_list_to_count:
-        # count(app)
         _total_review_count += count(app)
     print("\n" + "█" + "▀"*50 + "█")
     print(f"█ ✅  Total Review Count: {_total_review_count:^24d} █")
@@ -78,7 +76,8 @@ def main() -> None:
     print("█" + " "*50 + "█")
     print(f"█ Average Review Count per App ({len(app_list_to_count)}): {_total_review_count / len(app_list_to_count) :^12.1f}  █")
     print("█" + "▄"*50 + "█")
-    print(f"\n⏱️  Total execution time: {time.perf_counter() - start:.2f} seconds\n")
 
 if __name__=='__main__':
-    main()
+    start = time.perf_counter()
+    main()    
+    print(f"\n⏱️  Total execution time: {time.perf_counter() - start:.2f} seconds\n")

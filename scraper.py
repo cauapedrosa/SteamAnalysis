@@ -19,15 +19,15 @@ def main():
         
         # [fetch_reviews(app) for app in apps if app.id not in ['730','252490', '578080', '1063730']] # All Apps except in list
         
-        fetch_reviews(get_app_by_id("570"), verbose=DEBUG) # Single App by ID
+        # fetch_reviews(get_app_by_name("Dota 2"), verbose=DEBUG) # Single App by Name
         
-        # fetch_reviews(get_app_by_name("Rust"), verbose=DEBUG) # Single App by Name
+        fetch_reviews(get_app_by_id("413150"), verbose=DEBUG) # Single App by ID
     except Exception as e:
         print(f"⚠️ Scraper main() Raised {e}!")
         print(traceback.print_exc())        
     return
 
-def fetch_reviews(app: App, language='english', max_pages=9999, verbose=False):
+def fetch_reviews(app: App, language='english', max_pages=99999, verbose=False):
     print(f"Fetching Reviews for {app.name} [{app.id}]\nLanguage: {language} | max_pages: {max_pages} | verbose: {verbose}")
 
     # Declare Variables
@@ -35,8 +35,9 @@ def fetch_reviews(app: App, language='english', max_pages=9999, verbose=False):
     params = {
     'json':'1', 
     'num_per_page':'100',
-    'filter': 'recent',
-    'day_range':'365',
+    'filter': 'all',
+    # 'filter': 'recent',
+    # 'day_range':'365',
     'filter_offtopic_activity': 0,
     'language': language,
     'cursor': "*"
@@ -94,8 +95,12 @@ def add_to_json(list_reviews_to_add: list, app: App, language='english'):
             df_reviews_loaded = pd.read_json(file_path, orient='records')
         else: df_reviews_loaded = pd.DataFrame()
 
+        if DEBUG: print(f"# Found {len(df_reviews_loaded)} reviews in {file_path}")
+        if DEBUG: print(f"# Concatenating {len(list_reviews_to_add)} reviews to file")
 
         df_reviews_combined = pd.concat([df_reviews_loaded, df_reviews_to_add])
+
+        if DEBUG: print(f"# Concat resulted in {len(df_reviews_combined)} reviews in DF")
 
         df_reviews_combined['recommendationid'] = df_reviews_combined['recommendationid'].astype(str)
         
@@ -107,8 +112,12 @@ def add_to_json(list_reviews_to_add: list, app: App, language='english'):
             df_reviews_combined["timestamp_updated"], errors="coerce"
         ).fillna(0).astype(int)        
         
-        df_reviews_combined = df_reviews_combined.drop_duplicates(subset='recommendationid', keep='last')
-                
+        df_reviews_combined.drop_duplicates(
+            subset='recommendationid',
+            keep='last',
+            inplace=True)
+        if DEBUG: print(f"# After drop_duplicates(): {len(df_reviews_combined)} reviews in DF")
+          
         df_reviews_combined.to_json(file_path, orient="records", indent=4, force_ascii=False)
         
         print(f"\n💾\tSaved {len(df_reviews_combined)} reviews into {file_path}")
@@ -119,7 +128,9 @@ def add_to_json(list_reviews_to_add: list, app: App, language='english'):
     
     return
 
+
 if __name__=='__main__':
+    print(f"⏰ Starting at {time.strftime("%d/%m/%Y %H:%M %p",time.localtime())}")
     start = time.perf_counter()    
     main()
     print(f"\n⏱️  Total execution time: {time.perf_counter() - start :.2f} seconds\n")
