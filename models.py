@@ -1,6 +1,7 @@
 import time
 import pickle
 import pandas as pd
+import traceback
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -8,7 +9,7 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.svm import LinearSVC
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, confusion_matrix
 # Local imports
 import parser as p
 import apps
@@ -17,6 +18,7 @@ import apps
 from joblib import Memory
 cachedir = './sklearn_cache'
 memory = Memory(location=cachedir, verbose=1)
+start = time.perf_counter()
 
 def load_data() -> pd.DataFrame:
     df = pd.DataFrame()
@@ -26,10 +28,9 @@ def load_data() -> pd.DataFrame:
     for app in apps.apps:
         df_aux = p.load_preprocessed_app_reviews(app)
         dfs.append(df_aux)
-        print(f"Loaded {len(df_aux)} reviews for app {app.name} [{app.id}]")
 
     df = pd.concat(dfs, ignore_index=True)
-    print(f"Total Reviews loaded: {len(df)}\n")
+    print(f"\n> Loaded: {len(df)} reviews in Total!\n")
 
     # SINGLE APP
     # app = apps.get_app_by_id('570')
@@ -53,16 +54,19 @@ def load_data() -> pd.DataFrame:
         "author_last_played",
     ]
     df = df.drop(columns=unused_columns)
+    print(f"> After dropping unused columns df has {len(df)} reviews...") # DEBUG
 
     # Drop NA reviews
     print(f"> Dropping {df['review'].isna().sum()} missing values...")
     df = df.dropna(subset=['review'])
     print(f"> After dropna df has {len(df)} reviews...") # DEBUG
+    
+    print(f"⏱️  Total loading time: {time.perf_counter() - start :.2f} seconds\n")    
     return df
 
 def train_svm_model(X_train, y_train) -> Pipeline:
     # Preprocessing
-    print("\n> Setting up Model...")
+    print("\n> Starting Training of LinearSVC Model...")
     preprocessor = ColumnTransformer(
         transformers=[
             ("text", TfidfVectorizer(
@@ -80,7 +84,9 @@ def train_svm_model(X_train, y_train) -> Pipeline:
     pipeline = Pipeline(
         [
             ("preprocessor", preprocessor),
-            ("classifier", LinearSVC(max_iter=10000))
+            ("classifier", LinearSVC(
+                max_iter=10000
+            ))
         ],
         verbose=True,
         memory=memory,
@@ -96,7 +102,7 @@ def train_svm_model(X_train, y_train) -> Pipeline:
 
 def train_rf_model(X_train, y_train) -> Pipeline:
     # Preprocessing
-    print("\n> Setting up Model...")
+    print("\n> Starting Training of Random Forest Classifier Model...")
     preprocessor = ColumnTransformer(
         transformers=[
             ("text", TfidfVectorizer(
@@ -114,10 +120,11 @@ def train_rf_model(X_train, y_train) -> Pipeline:
         [
             ("preprocessor", preprocessor),
             ("classifier", RandomForestClassifier(
-                n_estimators = 100,     # Default = 100
-                max_depth = 50,         # Default = None
-                random_state = 0,       # Default = None
-                n_jobs = 12,            # Default = None (Use only 1 Core) | -1 Uses all Cores
+                n_estimators = 100,         # Default = 100
+                max_depth = 100,            # Default = None
+                class_weight = "balanced",  # Default = None
+                random_state = 0,           # Default = None
+                n_jobs = 12,                # Default = None (Use only 1 Core) | -1 Uses all Cores
                 verbose = 2,
             ))
         ],
@@ -173,7 +180,7 @@ def main():
         X,
         y,
         test_size=0.2,
-        random_state=42
+        # random_state=42
     )
     print(f"Train X:{len(X_train)} | Y:{len(y_train)}")
     print(f"Test X:{len(X_test)} | Y:{len(y_test)}")
@@ -188,30 +195,39 @@ def main():
     # > Train or Load RF Model
     rf_model = train_rf_model(X_train,y_train)
     # rf_model = load_model('./models/rf.pkl')
-    # models.append(rf_model)
+    models.append(rf_model)
     
-    # for model in models: #TODO: Implement Model-testing loop
-    
-    # Predict
-    print("\n> Predicting...")
-    # y_pred = svm_model.predict(X_test)    # SVM
-    y_pred = rf_model.predict(X_test)       # RF
-    
-    # Evaluate
-    print("\n> Evaluating Predictions...")
-    class_report = classification_report(y_test, y_pred)
-    # output_classification_report(class_report, './results/svm.txt', f'{svm_model}')
-    output_classification_report(class_report, './results/rf.txt', f'{rf_model}')
-    
-    # See what went wrong
-    print("\n> Seeing what went wrong...")
-    wrong = X_test[y_pred != y_test]
-    print(wrong)
+    print(f"\n> Testing {len(models)} models...")
+    for model in models:
+        model_name = model.named_steps['classifier']
+        print(f"> Testing {model_name}...")
+        if isinstance(model_name , RandomForestClassifier): file_name = './results/rfc.txt'
+        elif isinstance(model_name , LinearSVC): file_name = './results/svc.txt'
+        else: raise Exception(f"Error: Unknown Model: {model}\n{type(model)}")        
+        # Predict
+        print("\n> Predicting...")
+        y_pred = model.predict(X_test)
+        
+        # Evaluate
+        print("\n> Evaluating Predictions...")
+        class_report = classification_report(y_test, y_pred, zero_division=0)
+        output_classification_report(class_report, file_name, f'{model}')
+        
+        print("> Confusion Matrix:")
+        print(confusion_matrix(y_test, y_pred))
+
+        # See what went wrong
+        # print("\n> Seeing what went wrong...")
+        # wrong = X_test[y_pred != y_test]
+        # print(wrong)
 
 if __name__=='__main__':
     print(f"⏰ Starting at {time.strftime("%d/%m/%Y %H:%M %p",time.localtime())}")
-    start = time.perf_counter()    
-    # for app in apps.apps: main(app) 
-    # app = apps.apps_by_name['PUBG: BATTLEGROUNDS']
-    main()
+    
+    try:
+        main()    
+    except Exception as e:
+        print("Execution Failed due to Exception: ", e)
+        traceback.print_exc()
+    
     print(f"\n⏱️  Total execution time: {time.perf_counter() - start :.2f} seconds\n")

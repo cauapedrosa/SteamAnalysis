@@ -138,11 +138,8 @@ def load_preprocessed_app_reviews(app: apps.App, suffix: str = 'processed') -> p
     if len(df) == 0:
         print(f"⚠️  {path_reviews_json} contains 0 reviews.") # warn user
         return df # return empty df anyways
-
-    # Count DF Lines
-    if DEBUG: print(f"# load_preprocessed_app_reviews() Returning {type(df)} with {len(df)} rows")
     
-    print(f"> Loaded {len(df)} reviews in: ⏱️  {time.perf_counter()-start:.2f} seconds")
+    print(f"> Loaded {len(df)} reviews for {app.name} [{app.id}] in: ⏱️  {time.perf_counter()-start:.2f} seconds")
     return df
 
 def get_wordnet_pos(tag):
@@ -217,6 +214,7 @@ def preprocess_text_for_wordcloud(text, language='english') -> str:
     stop = set(stopwords.words(language))
     
     # 6. Remove words that are too frequent in all reviews to make space for more relevant words
+    stop.add("good")
     stop.add("game")
     stop.add("play")
     stop.add("like")
